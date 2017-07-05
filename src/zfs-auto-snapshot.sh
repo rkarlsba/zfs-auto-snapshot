@@ -44,7 +44,7 @@ opt_setauto=''
 opt_syslog=''
 opt_skip_scrub=''
 opt_verbose=0
-opt_utf=0
+opt_utc=0
 opt_pre_snapshot=''
 opt_post_snapshot=''
 opt_do_snapshots=1
@@ -252,7 +252,7 @@ do_snapshots () # properties, flags, snapname, oldglob, [targets...]
 GETOPT=$(getopt \
   --longoptions=default-exclude,dry-run,fast,skip-scrub,recursive \
   --longoptions=event:,keep:,label:,prefix:,sep: \
-  --longoptions=debug,help,quiet,syslog,verbose,utf \
+  --longoptions=debug,help,quiet,syslog,verbose,utc \
   --longoptions=pre-snapshot:,post-snapshot:,destroy-only \
   --options=dnshe:l:k:p:rs:qgUv \
   --longoptions=min-size: \
@@ -264,8 +264,8 @@ eval set -- "$GETOPT"
 while [ "$#" -gt 0 ]
 do
 	case "$1" in
-		(-U|--utf)
-			opt_utf=1
+		(-U|--utc)
+			opt_utc=1
 			shift 1
 			;;
 		(-d|--debug)
@@ -617,7 +617,12 @@ SNAPPROP="-o com.sun:auto-snapshot-desc='$opt_event'"
 
 # ISO style date; fifteen characters: YYYY-MM-DD-HHMM
 # On Solaris %H%M expands to 12h34.
-DATE=$(date --utc +%F-%H%M)
+if [ $opt_utc -gt 0 ]
+then
+	DATE=$(date --utc +%F-%H%M)
+else
+	DATE=$(date +%F-%H%M)
+fi
 
 # The snapshot name after the @ symbol.
 SNAPNAME="$opt_prefix${opt_label:+$opt_sep$opt_label}-$DATE"

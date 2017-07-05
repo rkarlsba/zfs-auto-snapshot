@@ -1,6 +1,7 @@
 #!/bin/sh
-# vim:ts=4:sw=4:sts=4:tw=80
+# vim:ts=4:sw=4:sts=4:tw=80:fdm=marker
 
+# License etc {{{ 
 # zfs-auto-snapshot for Linux
 # Automatically create, rotate, and destroy periodic ZFS snapshots.
 # Copyright 2011 Darik Horn <dajhorn@vanadac.com>
@@ -20,8 +21,9 @@
 # You should have received a copy of the GNU General Public License along with
 # this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 # Place, Suite 330, Boston, MA  02111-1307  USA
-#
+# }}}
 
+# Variables {{{ 
 # Set the field separator to a literal tab and newline.
 IFS="	
 "
@@ -41,10 +43,11 @@ opt_sep='_'
 opt_setauto=''
 opt_syslog=''
 opt_skip_scrub=''
-opt_verbose=''
+opt_verbose=0
 opt_pre_snapshot=''
 opt_post_snapshot=''
 opt_do_snapshots=1
+opt_min_size=0
 
 # Global summary statistics.
 DESTRUCTION_COUNT=0
@@ -54,7 +57,8 @@ WARNING_COUNT=0
 # Other global variables.
 SNAPSHOTS_OLD=''
 
-
+# }}}
+# print_usage() {{{ 
 print_usage ()
 {
 	echo "Usage: $0 [options] [-l label] <'//' | name [name...]>
@@ -76,11 +80,13 @@ print_usage ()
   -r, --recursive    Snapshot named filesystem and all descendants.
   -v, --verbose      Print info messages.
       --destroy-only Only destroy older snapshots, do not create new ones.
+      --min-size     Skip creating snapshot if `written` property is less than
+	                 min-size kbytes..
       name           Filesystem and volume names, or '//' for all ZFS datasets.
 " 
 }
-
-
+# }}}
+# print_log() {{{ 
 print_log () # level, message, ...
 {
 	LEVEL=$1
@@ -125,8 +131,8 @@ print_log () # level, message, ...
 			;;
 	esac
 }
-
-
+# }}}
+# do_run() {{{ 
 do_run () # [argv]
 {
 	if [ -n "$opt_dry_run" ]
@@ -145,8 +151,8 @@ do_run () # [argv]
 	fi
 	return "$RC"
 }
-
-
+# }}}
+# do_snapshots() {{{ 
 do_snapshots () # properties, flags, snapname, oldglob, [targets...]
 {
 	local PROPS="$1"
@@ -164,7 +170,39 @@ do_snapshots () # properties, flags, snapname, oldglob, [targets...]
 
 	for ii in $TARGETS
 	do
-		if [ -n "$opt_do_snapshots" ]
+		# Check if size check is > 0
+		size_check_skip=0
+		if [ "$opt_min_size" -gt 0 ]
+		then
+			bytes_written=$( zfs get -Hp -o value written $ii )
+			kb_written=$(( $bytes_written / 1024 ))
+			if [ "$kb_written" -lt "$opt_min_size" ]
+			then
+				size_check_skip=1
+				if [ "$opt_verbose" -gt 0 ]
+				then
+					echo "Skipping target $ii, only $kb_written kB written since last snap. opt_min_size is $opt_min_size"
+				fi
+			fi
+		fi
+
+		if [ -n "$opt_do_snapshots" -a "$size_check_skip" -eq 0 ]
+		then
+			if [ "$opt_pre_snapshot" != "" ]
+			then
+				do_run "$opt_pre_snapshot $ii $NAME" || RUNSNAP=0
+			fi
+			if [ $RUNSNAP -eq 1 ] && do_run "zfs snapshot $PROPS $FLAGS '$ii@$NAME'"
+			then
+				[ "$opt_post_snapshot" != "" ] && do_run "$opt_post_snapshot $ii $NAME"
+				SNAPSHOT_COUNT=$(( $SNAPSHOT_COUNT + 1 ))
+			else
+				WARNING_COUNT=$(( $WARNING_COUNT + 1 ))
+				continue
+			fi
+		fi
+
+		if [ -n "$opt_do_snapshots" -a "$size_check_skip" -eq 0 ]
 		then
 			if [ "$opt_pre_snapshot" != "" ]
 			then
@@ -205,17 +243,18 @@ do_snapshots () # properties, flags, snapname, oldglob, [targets...]
 		done
 	done
 }
+# }}}
 
+# main () {{{
 
-# main ()
-# {
-
+# getopt {{{
 GETOPT=$(getopt \
   --longoptions=default-exclude,dry-run,fast,skip-scrub,recursive \
   --longoptions=event:,keep:,label:,prefix:,sep: \
   --longoptions=debug,help,quiet,syslog,verbose \
   --longoptions=pre-snapshot:,post-snapshot:,destroy-only \
   --options=dnshe:l:k:p:rs:qgv \
+  --longoptions=min-size: \
   -- "$@" ) \
   || exit 128
 
@@ -272,6 +311,10 @@ do
 			;;
 		(-l|--label)
 			opt_label="$2"
+			shift 2
+			;;
+		(-m|--min-size)
+			opt_min_size="$2"
 			shift 2
 			;;
 		(-p|--prefix)
@@ -362,6 +405,7 @@ then
 	print_log error "The // must be the only argument if it is given."
 	exit 134
 fi
+# }}}
 
 # These are the only times that `zpool status` or `zfs list` are invoked, so
 # this program for Linux has a much better runtime complexity than the similar
@@ -503,28 +547,63 @@ do
 		fi
 	done
 
-	for jj in $TARGETS_RECURSIVE
-	do
-		# Ibid regarding iii.
-		jjj="$jj/"
-
-		# Check whether any included dataset is a prefix of the candidate name.
-		if [ "$iii" != "${iii#$jjj}" ]
-		then
-			print_log debug "Excluding $ii because $jj includes it recursively."
-			continue 2
-		fi
-	done
-
-	# Append this candidate to the recursive snapshot list because it:
-	#
-	#   * Does not have an exclusionary property.
-	#   * Is in a pool that can currently do snapshots.
-	#   * Does not have an excluded descendent filesystem.
-	#   * Is not the descendant of an already included filesystem.
-	#
-	print_log debug "Including $ii for recursive snapshot."
-	TARGETS_RECURSIVE="${TARGETS_RECURSIVE:+$TARGETS_RECURSIVE	}$ii" # nb: \t
+# Old code {{{
+#	for jj in $TARGETS_RECURSIVE
+#	do
+#		# Ibid regarding iii.
+#		jjj="$jj/"
+#
+#		# Check whether any included dataset is a prefix of the candidate name.
+#		if [ "$iii" != "${iii#$jjj}" ]
+#		then
+#			print_log debug "Excluding $ii because $jj includes it recursively."
+#			continue 2
+#		fi
+#	done
+#
+#	# Append this candidate to the recursive snapshot list because it:
+#	#
+#	#   * Does not have an exclusionary property.
+#	#   * Is in a pool that can currently do snapshots.
+#	#   * Does not have an excluded descendent filesystem.
+#	#   * Is not the descendant of an already included filesystem.
+#	#
+#	print_log debug "Including $ii for recursive snapshot."
+#	TARGETS_RECURSIVE="${TARGETS_RECURSIVE:+$TARGETS_RECURSIVE	}$ii" # nb: \t
+# }}}
+	#BEGIN ugly workaround for comment#3 in PR 59 that fixes issue 65.
+	#treat all uncategorized datasets as regular instead of recursive
+	#enable the workaround only when min-size is non-zero
+	if [ "$opt_min_size" -gt 0 ]
+	then
+		print_log debug "Including $ii for regular snapshot."
+		TARGETS_REGULAR="${TARGETS_REGULAR:+$TARGETS_REGULAR	}$ii" # nb: \t
+		continue 2
+	else
+		for jj in $TARGETS_RECURSIVE
+		do
+			# Ibid regarding iii.
+			jjj="$jj/"
+	
+			# Check whether any included dataset is a prefix of the candidate name.
+			if [ "$iii" != "${iii#$jjj}" ]
+			then
+				print_log debug "Excluding $ii because $jj includes it recursively."
+				continue 2
+			fi
+		done
+	
+		# Append this candidate to the recursive snapshot list because it:
+		#
+		#   * Does not have an exclusionary property.
+		#   * Is in a pool that can currently do snapshots.
+		#   * Does not have an excluded descendent filesystem.
+		#   * Is not the descendant of an already included filesystem.
+		#
+		print_log debug "Including $ii for recursive snapshot."
+		TARGETS_RECURSIVE="${TARGETS_RECURSIVE:+$TARGETS_RECURSIVE	}$ii" # nb: \t
+	fi
+	#END Workaround for comment #3 in PR 59 that fixes issue 65.
 done
 
 # Linux lacks SMF and the notion of an FMRI event, but always set this property
@@ -576,4 +655,4 @@ print_log notice "@$SNAPNAME," \
   "$WARNING_COUNT warnings."
 
 exit 0
-# }
+# }}}

@@ -143,7 +143,7 @@ do_run () # [argv]
 	else
 		eval $*
 		RC="$?"
-		if [ "$RC" -eq '0' ]
+		if [ "$RC" -eq 0 ]
 		then
 			print_log debug "$*"
 		else
@@ -231,7 +231,7 @@ do_snapshots () # properties, flags, snapname, oldglob, [targets...]
 			if [ -z "${jj#$ii@$GLOB}" ]
 			then
 				KEEP=$(( $KEEP - 1 ))
-				if [ "$KEEP" -le '0' ]
+				if [ "$KEEP" -le 0 ]
 				then
 					if do_run "zfs destroy $FLAGS '$jj'" 
 					then
@@ -261,7 +261,7 @@ GETOPT=$(getopt \
 
 eval set -- "$GETOPT"
 
-while [ "$#" -gt '0' ]
+while [ "$#" -gt 0 ]
 do
 	case "$1" in
 		(-U|--utf)
@@ -275,7 +275,7 @@ do
 			shift 1
 			;;
 		(--default-exclude)
-			opt_default_exclude='1'
+			opt_default_exclude=1
 			shift 1
 			;;
 		(-e|--event)
@@ -283,22 +283,22 @@ do
 			then
 				print_log error "The $1 parameter must be less than 1025 characters."
 				exit 139
-			elif [ "${#2}" -gt '0' ]
+			elif [ "${#2}" -gt 0 ]
 			then
 				opt_event="$2"
 			fi
 			shift 2
 			;;
 		(--fast)
-			opt_fast_zfs_list='1'
+			opt_fast_zfs_list=1
 			shift 1
 			;;
 		(-n|--dry-run)
-			opt_dry_run='1'
+			opt_dry_run=1
 			shift 1
 			;;
 		(-s|--skip-scrub)
-			opt_skip_scrub='1'
+			opt_skip_scrub=1
 			shift 1
 			;;
 		(-h|--help)
@@ -306,7 +306,7 @@ do
 			exit 0
 			;;
 		(-k|--keep)
-			if ! test "$2" -gt '0' 2>/dev/null
+			if ! test "$2" -gt 0 2>/dev/null
 			then
 				print_log error "The $1 parameter must be a positive integer."
 				exit 129
@@ -324,7 +324,7 @@ do
 			;;
 		(-p|--prefix)
 			opt_prefix="$2"
-			while test "${#opt_prefix}" -gt '0'
+			while test "${#opt_prefix}" -gt 0
 			do
 				case $opt_prefix in
 					([![:alnum:]_.:\ -]*)
@@ -365,12 +365,12 @@ do
 			shift 2
 			;;
 		(-g|--syslog)
-			opt_syslog='1'
+			opt_syslog=1
 			shift 1
 			;;
 		(-v|--verbose)
-			opt_quiet=''
-			opt_verbose='1'
+			opt_quiet=0
+			opt_verbose=1
 			shift 1
 			;;
 		(--pre-snapshot)
@@ -392,20 +392,20 @@ do
 	esac
 done
 
-if [ "$#" -eq '0' ]
+if [ "$#" -eq 0 ]
 then
 	print_log error "The filesystem argument list is empty."
 	exit 133
 fi 
 
 # Count the number of times '//' appears on the command line.
-SLASHIES='0'
+SLASHIES=0
 for ii in "$@"
 do
 	test "$ii" = '//' && SLASHIES=$(( $SLASHIES + 1 ))
 done
 
-if [ "$#" -gt '1' -a "$SLASHIES" -gt '0' ]
+if [ "$#" -gt 1 -a "$SLASHIES" -gt 0 ]
 then
 	print_log error "The // must be the only argument if it is given."
 	exit 134
@@ -489,7 +489,7 @@ do
 	iii="$ii/"
 
 	# Exclude datasets that are not named on the command line.
-	IN_ARGS='0'
+	IN_ARGS=0
 	for jj in "$@"
 	do
 		if [ "$jj" = '//' -o "$jj" = "$ii" ]
@@ -497,7 +497,7 @@ do
 			IN_ARGS=$(( $IN_ARGS + 1 ))
 		fi
 	done
-	if [ "$IN_ARGS" -eq '0' ]
+	if [ "$IN_ARGS" -eq 0 ]
 	then
 		continue
 	fi

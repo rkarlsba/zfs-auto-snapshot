@@ -44,6 +44,7 @@ opt_setauto=''
 opt_syslog=''
 opt_skip_scrub=''
 opt_verbose=0
+opt_utf=0
 opt_pre_snapshot=''
 opt_post_snapshot=''
 opt_do_snapshots=1
@@ -251,9 +252,9 @@ do_snapshots () # properties, flags, snapname, oldglob, [targets...]
 GETOPT=$(getopt \
   --longoptions=default-exclude,dry-run,fast,skip-scrub,recursive \
   --longoptions=event:,keep:,label:,prefix:,sep: \
-  --longoptions=debug,help,quiet,syslog,verbose \
+  --longoptions=debug,help,quiet,syslog,verbose,utf \
   --longoptions=pre-snapshot:,post-snapshot:,destroy-only \
-  --options=dnshe:l:k:p:rs:qgv \
+  --options=dnshe:l:k:p:rs:qgUv \
   --longoptions=min-size: \
   -- "$@" ) \
   || exit 128
@@ -263,10 +264,14 @@ eval set -- "$GETOPT"
 while [ "$#" -gt '0' ]
 do
 	case "$1" in
+		(-U|--utf)
+			opt_utf=1
+			shift 1
+			;;
 		(-d|--debug)
-			opt_debug='1'
+			opt_debug=1
+			opt_verbose=1
 			opt_quiet=''
-			opt_verbose='1'
 			shift 1
 			;;
 		(--default-exclude)
@@ -333,13 +338,13 @@ do
 			shift 2
 			;;
 		(-q|--quiet)
-			opt_debug=''
-			opt_quiet='1'
-			opt_verbose=''
+			opt_debug=0
+			opt_quiet=1
+			opt_verbose=0
 			shift 1
 			;;
 		(-r|--recursive)
-			opt_recursive='1'
+			opt_recursive=1
 			shift 1
 			;;
 		(--sep)

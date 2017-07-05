@@ -1,8 +1,11 @@
 #!/bin/sh
+# vim:ts=4:sw=4:sts=4:tw=80
 
 # zfs-auto-snapshot for Linux
 # Automatically create, rotate, and destroy periodic ZFS snapshots.
 # Copyright 2011 Darik Horn <dajhorn@vanadac.com>
+# Rewritten in 2015+ with more functionality by Roy Sigurd Karlsbakk
+# <roy@karlsbakk.net> and others.
 #
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -44,9 +47,9 @@ opt_post_snapshot=''
 opt_do_snapshots=1
 
 # Global summary statistics.
-DESTRUCTION_COUNT='0'
-SNAPSHOT_COUNT='0'
-WARNING_COUNT='0'
+DESTRUCTION_COUNT=0
+SNAPSHOT_COUNT=0
+WARNING_COUNT=0
 
 # Other global variables.
 SNAPSHOTS_OLD=''

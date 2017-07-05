@@ -74,7 +74,7 @@ print_usage ()
   -r, --recursive    Snapshot named filesystem and all descendants.
   -v, --verbose      Print info messages.
       --destroy-only Only destroy older snapshots, do not create new ones.
-      --min-size     Skip creating snapshot if `written` property is less than min-size bytes.
+      --min-size     Skip creating snapshot if `written` property is less than min-size kbytes.
       name           Filesystem and volume names, or '//' for all ZFS datasets.
 " 
 }
@@ -524,7 +524,7 @@ do
 	done
 
 	#BEGIN ugly workaround for comment#3 in PR 59 that fixes issue 65.
-	#Disables all recursive invocation of `zfs snapshot` and instead snapshots each dataset one by one
+	#treat all uncategorized datasets as regular instead of recursive
 	#enable the workaround only when min-size is non-zero
 	if [ "$opt_min_size" -gt 0 ]
 	then

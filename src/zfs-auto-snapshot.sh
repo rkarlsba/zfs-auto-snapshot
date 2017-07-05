@@ -38,7 +38,7 @@ opt_sep='_'
 opt_setauto=''
 opt_syslog=''
 opt_skip_scrub=''
-opt_verbose=''
+opt_verbose='0'
 opt_pre_snapshot=''
 opt_post_snapshot=''
 opt_do_snapshots=1
@@ -74,6 +74,7 @@ print_usage ()
   -r, --recursive    Snapshot named filesystem and all descendants.
   -v, --verbose      Print info messages.
       --destroy-only Only destroy older snapshots, do not create new ones.
+      --min-size     Skip creating snapshot if `written` property is less than min-size bytes.
       name           Filesystem and volume names, or '//' for all ZFS datasets.
 " 
 }
@@ -311,7 +312,7 @@ do
 		(-q|--quiet)
 			opt_debug=''
 			opt_quiet='1'
-			opt_verbose=''
+			opt_verbose='0' 
 			shift 1
 			;;
 		(-r|--recursive)
@@ -522,28 +523,39 @@ do
 		fi
 	done
 
-	for jj in $TARGETS_RECURSIVE
-	do
-		# Ibid regarding iii.
-		jjj="$jj/"
-
-		# Check whether any included dataset is a prefix of the candidate name.
-		if [ "$iii" != "${iii#$jjj}" ]
-		then
-			print_log debug "Excluding $ii because $jj includes it recursively."
-			continue 2
-		fi
-	done
-
-	# Append this candidate to the recursive snapshot list because it:
-	#
-	#   * Does not have an exclusionary property.
-	#   * Is in a pool that can currently do snapshots.
-	#   * Does not have an excluded descendent filesystem.
-	#   * Is not the descendant of an already included filesystem.
-	#
-	print_log debug "Including $ii for recursive snapshot."
-	TARGETS_RECURSIVE="${TARGETS_RECURSIVE:+$TARGETS_RECURSIVE	}$ii" # nb: \t
+	#BEGIN ugly workaround for comment#3 in PR 59 that fixes issue 65.
+	#Disables all recursive invocation of `zfs snapshot` and instead snapshots each dataset one by one
+	#enable the workaround only when min-size is non-zero
+	if [ "$opt_min_size" -gt 0 ]
+	then
+		print_log debug "Including $ii for regular snapshot."
+		TARGETS_REGULAR="${TARGETS_REGULAR:+$TARGETS_REGULAR	}$ii" # nb: \t
+		continue 2
+	else
+		for jj in $TARGETS_RECURSIVE
+		do
+			# Ibid regarding iii.
+			jjj="$jj/"
+	
+			# Check whether any included dataset is a prefix of the candidate name.
+			if [ "$iii" != "${iii#$jjj}" ]
+			then
+				print_log debug "Excluding $ii because $jj includes it recursively."
+				continue 2
+			fi
+		done
+	
+		# Append this candidate to the recursive snapshot list because it:
+		#
+		#   * Does not have an exclusionary property.
+		#   * Is in a pool that can currently do snapshots.
+		#   * Does not have an excluded descendent filesystem.
+		#   * Is not the descendant of an already included filesystem.
+		#
+		print_log debug "Including $ii for recursive snapshot."
+		TARGETS_RECURSIVE="${TARGETS_RECURSIVE:+$TARGETS_RECURSIVE	}$ii" # nb: \t
+	fi
+	#END Workaround for comment #3 in PR 59 that fixes issue 65.
 done
 
 # Linux lacks SMF and the notion of an FMRI event, but always set this property

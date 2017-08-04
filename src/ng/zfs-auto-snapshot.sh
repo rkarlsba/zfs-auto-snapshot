@@ -1,5 +1,6 @@
 #!/bin/bash
 # vim:ts=4:sw=4:et:ai:tw=80
+# test
 
 # A next-generation zfs-auto-snapshot. The old one relies on recursive
 # snapshots, which may be a good idea performance-wise, but removes a lot of

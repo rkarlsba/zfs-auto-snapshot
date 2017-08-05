@@ -2,7 +2,9 @@
 # vim:ts=4:sw=4:sts=4:tw=80:fdm=marker
 
 # License etc {{{ 
-# zfs-auto-snapshot for Linux
+#
+# zfs-auto-snapshot for Linux and other.
+#
 # Automatically create, rotate, and destroy periodic ZFS snapshots.
 # Copyright 2011 Darik Horn <dajhorn@vanadac.com>
 # Rewritten in 2015+ with more functionality by Roy Sigurd Karlsbakk
@@ -21,6 +23,34 @@
 # You should have received a copy of the GNU General Public License along with
 # this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 # Place, Suite 330, Boston, MA  02111-1307  USA
+#
+# CHANGES
+#
+# Added version v0.2.0 - the orignal didn't have versions numbers, so I just
+# jumped to ahead to this.
+#
+# This is a rewrite from the original from
+# https://github.com/zfsonlinux/zfs-auto-snapshot as of 2017-07-05 and not the
+# version from https://github.com/rkarlsba/zfs-auto-snapshot. This was to remove
+# old code from the latter and to ease an eventual move of this code to the
+# former github repo.
+#
+# Attempt to rewrite the recursive bit to do recuse in bash instead of passing
+# the -r flag to zfs snapshot. This may take a bit longer time, but it'll
+# make control per dataset much easier, both to allow for avoidance of empty
+# snaps during snapshotting, and allowing us to use the whole set of original
+# settings, as in 'zfs set com.sun:auto-snapshot:$var=true rpool/export' where
+# var is frequent, horly, daily, weekly or monthly. If necessary, a yearly or
+# similar will be easy to add, again for specific filesystems.
+#
+# Remove opt_recursive and instead scan through all filesystems and check for
+# com.sun:zfs-autosnap
+#
+# GENERAL CODE CLEANUP
+#  - Use vim folds
+#  - Remove unused variables
+#  - Make sure bools are preset to their default value.
+#
 # }}}
 
 # Variables {{{ 
@@ -29,8 +59,6 @@ IFS="
 "
 
 # Set default program options.
-opt_backup_full=''
-opt_backup_incremental=''
 opt_default_exclude=''
 opt_dry_run=''
 opt_event='-'
